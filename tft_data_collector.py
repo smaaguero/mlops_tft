@@ -5,16 +5,44 @@ from flatten_json import flatten
 ### data pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
+import json
+from typing import Optional
 
 ###
+# TODO: SYS ARGV COMO PARAMETROS
 api_key = 'RGAPI' # Enter Riot API Key Here #
+REGION = 'euw1'
+REGION_EXTENDED = 'Europe'
+N_MATCHES = 50
 ###
 
-def get_challengers(api_key: 'Riot API Key') -> 'json':
+def get_api_key(json_file_path: str) -> Optional[str]:
+    """
+    Reads an API key from a JSON file.
 
-    ph_challengers_url =  'https://ph2.api.riotgames.com/tft/league/v1/challenger'
-    ph_challengers_url = ph_challengers_url + '?api_key=' + api_key
+    Parameters:
+    - json_file_path (str): The path to the JSON file.
 
+    Returns:
+    - Optional[str]: The API key retrieved from the JSON file, or None if not found.
+    """
+    try:
+        # Load the JSON file
+        with open(json_file_path, 'r') as file:
+            config = json.load(file)
+
+        # Access the API key
+        api_key = config.get('api_key')
+
+        return api_key
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def get_challengers(api_key: 'str') -> 'json':
+    # ph_challengers_url =  'https://ph2.api.riotgames.com/tft/league/v1/challenger'
+    ph_challengers_url =  'https://ph2.api.riotgames.com/tft/league/v1/entries/EMERALD/III?queue=RANKED_TFT&page=1'
+    ph_challengers_url = ph_challengers_url + '&api_key=' + api_key
     try:
         ph_challengers_resp = requests.get(ph_challengers_url, timeout = 127)
         challengers_info = ph_challengers_resp.json()
@@ -22,7 +50,7 @@ def get_challengers(api_key: 'Riot API Key') -> 'json':
     except:
         print('Request has timed out.')
 
-def get_gms(api_key: 'Riot API Key') -> 'json':
+def get_gms(api_key: 'str') -> 'json':
 
     ph_gm_url = 'https://ph2.api.riotgames.com/tft/league/v1/grandmaster'
     ph_gm_url = ph_gm_url + '?api_key=' + api_key
@@ -34,21 +62,28 @@ def get_gms(api_key: 'Riot API Key') -> 'json':
     except:
         print('Request has timed out.')
 
-def get_names(players: 'json reply from Riot API') -> list:
+def get_masters(api_key: 'str', region: 'str') -> 'json':
 
-    player_names = []
-    players = players.get('entries')
-    for i in range(len(players)):
-        if (players[i])['wins'] != 0:
-            player_names += [(players[i]).get('summonerName')]
+    ph_gm_url = 'https://' + region + '.api.riotgames.com/tft/league/v1/master?queue=RANKED_TFT'
+    ph_gm_url = ph_gm_url + '&api_key=' + api_key
+    print(ph_gm_url)
+    try:
+        ph_gm_resp = requests.get(ph_gm_url, timeout = 127)
+        gm_info = ph_gm_resp.json()
+        return gm_info
+    except:
+        print('Request has timed out.')
 
-    return player_names
+def get_id(players: 'json') -> list:
 
-def get_puuid(names: list) -> list:
+    player_ids = [player['summonerId'] for player in players['entries']]
+    return player_ids
+
+def get_puuid(names: list, region:str) -> list:
 
     puuids = []
     for name in names:
-        puuid_url = 'https://ph2.api.riotgames.com/tft/summoner/v1/summoners/by-name/'
+        puuid_url = 'https://' + region + '.api.riotgames.com/tft/summoner/v1/summoners/'
         puuid_url = puuid_url + name + '?api_key=' + api_key
         puuid_resp = requests.get(puuid_url, timeout = 127)
         puuids += [dict(puuid_resp.json())]
@@ -59,25 +94,28 @@ def get_puuid(names: list) -> list:
 
     return final_puuids
 
-def get_match_ids(puuids: list) -> list:
-
+def get_match_ids(puuids: list, region_extended: str, n_matches: int) -> list:
+    '''
+    Get the last matches of players 
+    '''
     match_ids = []
     for puuid in puuids:
-        match_url = 'https://sea.api.riotgames.com/tft/match/v1/matches/by-puuid/'
-        match_url += puuid + '/ids?start=0&count=50&api_key=' + api_key
+        match_url = 'https://' + region_extended + '.api.riotgames.com/tft/match/v1/matches/by-puuid/'
+        match_url += puuid + '/ids?start=0&count=' + str(n_matches) + '&api_key=' + api_key
         match_resp = requests.get(match_url, timeout = 127)
         match_ids += match_resp.json()
 
     return match_ids
 
-def get_match_data(match_ids: list) -> 'pandas DataFrame':
+def get_match_data(match_ids: list, region_extended: str) -> 'pd.DataFrame':
 
     match_data = pd.DataFrame()
 
-    for match in match_ids:
-        match_url = 'https://sea.api.riotgames.com/tft/match/v1/matches/' + match + '?api_key=' + api_key
+    for match in match_ids: 
+        print(match)
+        match_url = 'https://' + region_extended + '.api.riotgames.com/tft/match/v1/matches/' + match + '?api_key=' + api_key
         match_resp = requests.get(match_url, timeout = 127).json()
-
+        print(match_resp)
         flat_match_resp = flatten(match_resp)
         keyList = list(flat_match_resp.keys())
 
@@ -183,13 +221,9 @@ class CorruptedDropper(BaseEstimator, TransformerMixin):
                             'units_3_items_2', 'units_0_items_2',	
                             'units_8_items_0', 'units_8_items_1',	
                             'units_8_items_2']
-        for feature in corrupted_features:
-            try:
-                X = X.drop(feature, axis = 'columns')
-            except:
-                continue
+        X = X.drop(corrupted_features, axis='columns', errors='ignore')
 
-            return X
+        return X
         
 class ResetIndex(BaseEstimator, TransformerMixin):
 
@@ -209,7 +243,7 @@ class DescribeMissing(BaseEstimator, TransformerMixin):
         missing_values_count = X.isnull().sum()
 
         # how many missing values do we have?
-        total_cells = np.product(X.shape)
+        total_cells = np.prod(X.shape)
         total_missing = missing_values_count.sum()
 
         # percent of missing data
@@ -283,15 +317,13 @@ def use_data_pipeline(match_data: 'json', filename: str) -> 'DataFrame':
 
     # use pipeline for data analysis
     pipe_analysis = Pipeline([
-       ("double_up_dropper", DoubleUpDropper()),
+    #    ("double_up_dropper", DoubleUpDropper()),
        ("nandrop", NaNDropper()),
        ("corruptdropper", CorruptedDropper()),
        ("resetindex", ResetIndex()),
        ("nanpercent", DescribeMissing())
     ])
-
     match_data = pipe_analysis.fit_transform(match_data)
-
     # write csv for data analysis
     match_data.to_csv('data/unprocessed_' + filename + '.csv', index = False)
 
@@ -311,24 +343,23 @@ def use_data_pipeline(match_data: 'json', filename: str) -> 'DataFrame':
 if __name__ == "__main__":
 
     try:
-        challengers = get_challengers(api_key)
-        chall_names = get_names(challengers)
-        chall_puuids = get_puuid(chall_names)
-        chall_matches = get_match_ids(chall_puuids)
+        print("Getting API Key...")
+        api_key = api_key = get_api_key('./data/API_key.json')
+        print("Getting master data...")
+        masters = get_masters(api_key, REGION)
+        print("Getting names of the challengers players...")
+        master_names = get_id(masters)
+        print("Getting puuids of the challengers players...")
+        master_puuids = get_puuid(master_names, REGION)
+        print("Getting match_ids of the challengers players...")
+        master_matches = get_match_ids(master_puuids, REGION_EXTENDED, n_matches=N_MATCHES)
         # remove duplicate matches
-        chall_matches = list(dict.fromkeys(chall_matches))
-        chall_match_data = get_match_data(chall_matches)
+        master_matches = list(dict.fromkeys(master_matches))
+        # TMP
+        print("Getting match data of the matches...")
+        master_match_data = get_match_data(master_matches, REGION_EXTENDED)
+        print("USING PIPELINE...")
+        processed_chall_match_data = use_data_pipeline(master_match_data, 'master_match_data')
 
-        processed_chall_match_data = use_data_pipeline(chall_match_data, 'challenger_match_data')
-
-        gms = get_gms(api_key)
-        gm_names = get_names(gms)
-        gm_puuids = get_puuid(gm_names)
-        gm_matches = get_match_ids(gm_puuids)
-        gm_matches = list(dict.fromkeys(gm_matches))
-        gm_match_data = get_match_data(gm_matches)
-
-        processed_gm_match_data = use_data_pipeline(gm_match_data, 'gm_match_data')
-
-    except:
-        print('Error occurred during ETL process.')
+    except Exception as error: 
+        print(error)
