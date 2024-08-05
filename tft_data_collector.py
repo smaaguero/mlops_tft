@@ -8,14 +8,6 @@ from sklearn.pipeline import Pipeline
 import json
 from typing import Optional
 
-###
-# TODO: SYS ARGV COMO PARAMETROS
-api_key = 'RGAPI' # Enter Riot API Key Here #
-REGION = 'euw1'
-REGION_EXTENDED = 'Europe'
-N_MATCHES = 50
-###
-
 def get_api_key(json_file_path: str) -> Optional[str]:
     """
     Reads an API key from a JSON file.
@@ -38,6 +30,30 @@ def get_api_key(json_file_path: str) -> Optional[str]:
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
+def load_config_from_json(json_file_path):
+    """
+    Load configuration from a JSON file.
+
+    Parameters:
+    - json_file_path: str, path to the JSON configuration file.
+
+    Returns:
+    - api_key: str, Riot API key.
+    - REGION: str, region code.
+    - REGION_EXTENDED: str, extended region name.
+    - N_MATCHES: int, number of matches to retrieve.
+    """
+    # Load the JSON data from the file
+    with open(json_file_path, 'r') as file:
+        config = json.load(file)
+
+    # Assign the values from the JSON to your variables
+    region = config.get('REGION', 'euw1') 
+    region_extended = config.get('REGION_EXTENDED', 'Europe')
+    n_matches = config.get('N_MATCHES', 20) 
+
+    return region, region_extended, n_matches
+
 
 def get_challengers(api_key: 'str') -> 'json':
     # ph_challengers_url =  'https://ph2.api.riotgames.com/tft/league/v1/challenger'
@@ -53,7 +69,11 @@ def get_challengers(api_key: 'str') -> 'json':
 def get_gms(api_key: 'str') -> 'json':
 
     ph_gm_url = 'https://ph2.api.riotgames.com/tft/league/v1/grandmaster'
-    ph_gm_url = ph_gm_url + '?api_key=' + api_key
+    ph_gm_url = ''.join([
+        ph_gm_url,
+        '?api_key=',
+        api_key
+    ])
 
     try:
         ph_gm_resp = requests.get(ph_gm_url, timeout = 127)
@@ -64,9 +84,13 @@ def get_gms(api_key: 'str') -> 'json':
 
 def get_masters(api_key: 'str', region: 'str') -> 'json':
 
-    ph_gm_url = 'https://' + region + '.api.riotgames.com/tft/league/v1/master?queue=RANKED_TFT'
+    ph_gm_url = ''.join([
+        'https://',
+        region,
+        '.api.riotgames.com/tft/league/v1/master?queue=RANKED_TFT'
+    ])
     ph_gm_url = ph_gm_url + '&api_key=' + api_key
-    print(ph_gm_url)
+
     try:
         ph_gm_resp = requests.get(ph_gm_url, timeout = 127)
         gm_info = ph_gm_resp.json()
@@ -83,7 +107,11 @@ def get_puuid(names: list, region:str) -> list:
 
     puuids = []
     for name in names:
-        puuid_url = 'https://' + region + '.api.riotgames.com/tft/summoner/v1/summoners/'
+        puuid_url = ''.join([
+            'https://',
+            region,
+            '.api.riotgames.com/tft/summoner/v1/summoners/'
+        ])
         puuid_url = puuid_url + name + '?api_key=' + api_key
         puuid_resp = requests.get(puuid_url, timeout = 127)
         puuids += [dict(puuid_resp.json())]
@@ -100,8 +128,18 @@ def get_match_ids(puuids: list, region_extended: str, n_matches: int) -> list:
     '''
     match_ids = []
     for puuid in puuids:
-        match_url = 'https://' + region_extended + '.api.riotgames.com/tft/match/v1/matches/by-puuid/'
-        match_url += puuid + '/ids?start=0&count=' + str(n_matches) + '&api_key=' + api_key
+        match_url = ''.join([
+            'https://',
+            region_extended,
+            '.api.riotgames.com/tft/match/v1/matches/by-puuid/'
+        ])
+        match_url += ''.join([
+            puuid,
+            '/ids?start=0&count=',
+            str(n_matches),
+            '&api_key=',
+            api_key
+        ])
         match_resp = requests.get(match_url, timeout = 127)
         match_ids += match_resp.json()
 
@@ -110,88 +148,43 @@ def get_match_ids(puuids: list, region_extended: str, n_matches: int) -> list:
 def get_match_data(match_ids: list, region_extended: str) -> 'pd.DataFrame':
 
     match_data = pd.DataFrame()
-
+    print("Número de match IDs:", len(match_ids))
     for match in match_ids: 
-        print(match)
-        match_url = 'https://' + region_extended + '.api.riotgames.com/tft/match/v1/matches/' + match + '?api_key=' + api_key
+        match_url = ''.join([
+            'https://',
+            region_extended,
+            '.api.riotgames.com/tft/match/v1/matches/',
+            match,
+            '?api_key=',
+            api_key
+        ])
         match_resp = requests.get(match_url, timeout = 127).json()
-        print(match_resp)
         flat_match_resp = flatten(match_resp)
-        keyList = list(flat_match_resp.keys())
 
-        keyList1 = [key for key in keyList if key.startswith('info_participants_0')]
-        keyList2 = [key for key in keyList if key.startswith('info_participants_1')]
-        keyList3 = [key for key in keyList if key.startswith('info_participants_2')]
-        keyList4 = [key for key in keyList if key.startswith('info_participants_3')]
-        keyList5 = [key for key in keyList if key.startswith('info_participants_4')]
-        keyList6 = [key for key in keyList if key.startswith('info_participants_5')]
-        keyList7 = [key for key in keyList if key.startswith('info_participants_6')]
-        keyList8 = [key for key in keyList if key.startswith('info_participants_7')]
+        # Flatten the JSON response to handle nested dictionaries
+        flat_match_resp = flatten(match_resp)
+        
+        # Loop through each of the 8 participants in the match
+        for i in range(8):
+            # Create the prefix for the current player's data keys
+            key_prefix = f'info_participants_{i}_'
 
-        player1info = {k:v for k, v in flat_match_resp.items() if k in keyList1}
-        player2info = {k:v for k, v in flat_match_resp.items() if k in keyList2}
-        player3info = {k:v for k, v in flat_match_resp.items() if k in keyList3}
-        player4info = {k:v for k, v in flat_match_resp.items() if k in keyList4}
-        player5info = {k:v for k, v in flat_match_resp.items() if k in keyList5}
-        player6info = {k:v for k, v in flat_match_resp.items() if k in keyList6}
-        player7info = {k:v for k, v in flat_match_resp.items() if k in keyList7}
-        player8info = {k:v for k, v in flat_match_resp.items() if k in keyList8}
-
-        player1 = pd.DataFrame([player1info])
-        player2 = pd.DataFrame([player2info])
-        player3 = pd.DataFrame([player3info])
-        player4 = pd.DataFrame([player4info])
-        player5 = pd.DataFrame([player5info])
-        player6 = pd.DataFrame([player6info])
-        player7 = pd.DataFrame([player7info])
-        player8 = pd.DataFrame([player8info])
-
-        player1.columns = player1.columns.str.replace('info_participants_0_', '')
-        player2.columns = player2.columns.str.replace('info_participants_1_', '')
-        player3.columns = player3.columns.str.replace('info_participants_2_', '')
-        player4.columns = player4.columns.str.replace('info_participants_3_', '')
-        player5.columns = player5.columns.str.replace('info_participants_4_', '')
-        player6.columns = player6.columns.str.replace('info_participants_5_', '')
-        player7.columns = player7.columns.str.replace('info_participants_6_', '')
-        player8.columns = player8.columns.str.replace('info_participants_7_', '')
-
-        player1 = player1.convert_dtypes()
-        player2 = player2.convert_dtypes()
-        player3 = player3.convert_dtypes()
-        player4 = player4.convert_dtypes()
-        player5 = player5.convert_dtypes()
-        player6 = player6.convert_dtypes()
-        player7 = player7.convert_dtypes()
-        player8 = player8.convert_dtypes()
-
-        player1 = player1.select_dtypes(exclude=['object'])
-        player2 = player2.select_dtypes(exclude=['object'])
-        player3 = player3.select_dtypes(exclude=['object'])
-        player4 = player4.select_dtypes(exclude=['object'])
-        player5 = player5.select_dtypes(exclude=['object'])
-        player6 = player6.select_dtypes(exclude=['object'])
-        player7 = player7.select_dtypes(exclude=['object'])
-        player8 = player8.select_dtypes(exclude=['object'])
-
-        match_data = pd.concat([match_data, player1], ignore_index = True)
-        match_data = pd.concat([match_data, player2], ignore_index = True)
-        match_data = pd.concat([match_data, player3], ignore_index = True)
-        match_data = pd.concat([match_data, player4], ignore_index = True)
-        match_data = pd.concat([match_data, player5], ignore_index = True)
-        match_data = pd.concat([match_data, player6], ignore_index = True)
-        match_data = pd.concat([match_data, player7], ignore_index = True)
-        match_data = pd.concat([match_data, player8], ignore_index = True)
+            # Extract and clean the current player's data by removing the prefix
+            player_info = {
+                k.replace(key_prefix, ''): v 
+                for k, v in flat_match_resp.items() 
+                if k.startswith(key_prefix)
+            }            
+            # Convert the player's data to a DataFrame, adjust data types, 
+            # and exclude non-numeric columns
+            player_df = pd.DataFrame([player_info]).convert_dtypes()\
+                .select_dtypes(exclude=['object'])
+            
+            # Append the player's DataFrame to the main match_data DataFrame
+            match_data = pd.concat([match_data, player_df], ignore_index=True)
 
     return match_data
 
-### Data Pipeline Methods
-class DoubleUpDropper(BaseEstimator, TransformerMixin):
-
-    def fit(self, X, y = None):
-        return self
-    
-    def transform(self, X):
-        return X[X['partner_group_id'].isnull()]
     
 class NaNDropper(BaseEstimator, TransformerMixin):
 
@@ -255,7 +248,6 @@ class DescribeMissing(BaseEstimator, TransformerMixin):
 # Initialize first pipe
 
 pipe_analysis = Pipeline([
-       ("double_up_dropper", DoubleUpDropper()),
        ("nandrop", NaNDropper()),
        ("corruptdropper", CorruptedDropper()),
        ("resetindex", ResetIndex()),
@@ -313,11 +305,10 @@ pipe_ml = Pipeline([
         ("augmentdummies", GetAugmentDummies())
 ])
 
-def use_data_pipeline(match_data: 'json', filename: str) -> 'DataFrame':
+def use_data_pipeline(match_data: 'json', filename: str) -> 'pd.DataFrame':
 
     # use pipeline for data analysis
     pipe_analysis = Pipeline([
-    #    ("double_up_dropper", DoubleUpDropper()),
        ("nandrop", NaNDropper()),
        ("corruptdropper", CorruptedDropper()),
        ("resetindex", ResetIndex()),
@@ -325,7 +316,10 @@ def use_data_pipeline(match_data: 'json', filename: str) -> 'DataFrame':
     ])
     match_data = pipe_analysis.fit_transform(match_data)
     # write csv for data analysis
-    match_data.to_csv('data/unprocessed_' + filename + '.csv', index = False)
+    match_data.to_parquet(
+        'data/unprocessed_' + filename + '.parquet', 
+        index = False
+    )
 
     pipe_ml = Pipeline([
             ("name_dropper", TrainDropper()),
@@ -336,30 +330,43 @@ def use_data_pipeline(match_data: 'json', filename: str) -> 'DataFrame':
     match_data = pipe_ml.fit_transform(match_data)
 
     # write csv for placement estimator
-    match_data.to_csv('data/processed_' + filename + '.csv', index = False)
+    match_data.to_parquet(
+        'data/processed_' + filename + '.parquet', 
+        index = False
+    )
 
     return match_data
 
 if __name__ == "__main__":
 
     try:
+        config_path = './data/config.JSON' 
+        api_path = './data/API_key.json'
+        region, region_extended, n_matches = load_config_from_json(config_path)
         print("Getting API Key...")
         api_key = api_key = get_api_key('./data/API_key.json')
         print("Getting master data...")
-        masters = get_masters(api_key, REGION)
+        masters = get_masters(api_key, region)
         print("Getting names of the challengers players...")
         master_names = get_id(masters)
         print("Getting puuids of the challengers players...")
-        master_puuids = get_puuid(master_names, REGION)
+        master_puuids = get_puuid(master_names, region)
         print("Getting match_ids of the challengers players...")
-        master_matches = get_match_ids(master_puuids, REGION_EXTENDED, n_matches=N_MATCHES)
+        master_matches = get_match_ids(
+            master_puuids, 
+            region_extended, 
+            n_matches=n_matches
+        )
         # remove duplicate matches
         master_matches = list(dict.fromkeys(master_matches))
-        # TMP
+
         print("Getting match data of the matches...")
-        master_match_data = get_match_data(master_matches, REGION_EXTENDED)
+        master_matc h_data = get_match_data(master_matches, region_extended)
         print("USING PIPELINE...")
-        processed_chall_match_data = use_data_pipeline(master_match_data, 'master_match_data')
+        processed_chall_match_data = use_data_pipeline(
+            master_match_data, 
+            'master_match_data'
+        )
 
     except Exception as error: 
         print(error)
