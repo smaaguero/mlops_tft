@@ -359,9 +359,9 @@ if __name__ == "__main__":
         )
         # remove duplicate matches
         master_matches = list(dict.fromkeys(master_matches))
-
+        # TMP
         print("Getting match data of the matches...")
-        master_matc h_data = get_match_data(master_matches, region_extended)
+        master_match_data = get_match_data(master_matches, region_extended)
         print("USING PIPELINE...")
         processed_chall_match_data = use_data_pipeline(
             master_match_data, 
