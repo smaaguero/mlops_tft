@@ -35,10 +35,10 @@ def scoring(rf_grid, X_train, y_train, X_valid, y_valid):
     print("Mean Average Error: ", mae)
 
 # read and concat data
-X_chall = pd.read_csv('data/processed_challenger_match_data.csv')
-X_gm = pd.read_csv('data/processed_gm_match_data.csv')
-X_full = pd.concat([X_chall, X_gm], axis = 'index')
-
+X_chall = pd.read_parquet('data/processed_master_match_data.parquet')
+# X_gm = pd.read_csv('data/processed_gm_match_data.csv')
+# X_full = pd.concat([X_chall, X_gm], axis = 'index')
+X_full = X_chall
 # remove duplicates
 X_full = X_full.drop_duplicates().copy()
 
@@ -71,7 +71,14 @@ X['total_items'] = X[item_columns].count(axis = 'columns').copy()
 X = X.drop(item_columns, axis = 'columns')
 
 # change NaNs of categoricals
-X = X.fillna(0)
+# X = X.fillna(0)
+
+# Fill missing values in string columns with the string '0'
+X[X.select_dtypes(include='string').columns] = X.select_dtypes(include='string').fillna('0')
+
+# Fill missing values in numeric columns with the numeric value 0
+X[X.select_dtypes(include=['number']).columns] = X.select_dtypes(include=['number']).fillna(0)
+
 
 # one-hot encoding of categoricals
 categoricals = [column for column in X.columns if ('augments' in column) or ('name' in column) or ('id' in column)]

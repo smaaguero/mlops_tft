@@ -54,40 +54,12 @@ def load_config_from_json(json_file_path):
 
     return region, region_extended, n_matches
 
-
-def get_challengers(api_key: 'str') -> 'json':
-    # ph_challengers_url =  'https://ph2.api.riotgames.com/tft/league/v1/challenger'
-    ph_challengers_url =  'https://ph2.api.riotgames.com/tft/league/v1/entries/EMERALD/III?queue=RANKED_TFT&page=1'
-    ph_challengers_url = ph_challengers_url + '&api_key=' + api_key
-    try:
-        ph_challengers_resp = requests.get(ph_challengers_url, timeout = 127)
-        challengers_info = ph_challengers_resp.json()
-        return challengers_info
-    except:
-        print('Request has timed out.')
-
-def get_gms(api_key: 'str') -> 'json':
-
-    ph_gm_url = 'https://ph2.api.riotgames.com/tft/league/v1/grandmaster'
-    ph_gm_url = ''.join([
-        ph_gm_url,
-        '?api_key=',
-        api_key
-    ])
-
-    try:
-        ph_gm_resp = requests.get(ph_gm_url, timeout = 127)
-        gm_info = ph_gm_resp.json()
-        return gm_info
-    except:
-        print('Request has timed out.')
-
-def get_masters(api_key: 'str', region: 'str') -> 'json':
+def get_challengers(api_key: 'str', region: 'str') -> 'json':
 
     ph_gm_url = ''.join([
         'https://',
         region,
-        '.api.riotgames.com/tft/league/v1/master?queue=RANKED_TFT'
+        '.api.riotgames.com/tft/league/v1/challenger?queue=RANKED_TFT'
     ])
     ph_gm_url = ph_gm_url + '&api_key=' + api_key
 
@@ -95,7 +67,7 @@ def get_masters(api_key: 'str', region: 'str') -> 'json':
         ph_gm_resp = requests.get(ph_gm_url, timeout = 127)
         gm_info = ph_gm_resp.json()
         return gm_info
-    except:
+    except:  # noqa: E722
         print('Request has timed out.')
 
 def get_id(players: 'json') -> list:
@@ -269,7 +241,7 @@ class TrainDropper(BaseEstimator, TransformerMixin):
         for feature in non_training_features:
             try:
                 X = X.drop(feature, axis = 'columns')
-            except:
+            except:  # noqa: E722
                 continue
         
         return X
@@ -346,26 +318,26 @@ if __name__ == "__main__":
         print("Getting API Key...")
         api_key = api_key = get_api_key('./data/API_key.json')
         print("Getting master data...")
-        masters = get_masters(api_key, region)
+        challengers = get_challengers(api_key, region)
         print("Getting names of the challengers players...")
-        master_names = get_id(masters)
+        players_names = get_id(challengers)
         print("Getting puuids of the challengers players...")
-        master_puuids = get_puuid(master_names, region)
+        players_puuids = get_puuid(players_names, region)
         print("Getting match_ids of the challengers players...")
-        master_matches = get_match_ids(
-            master_puuids, 
+        matches = get_match_ids(
+            players_puuids, 
             region_extended, 
             n_matches=n_matches
         )
         # remove duplicate matches
-        master_matches = list(dict.fromkeys(master_matches))
+        matches = list(dict.fromkeys(matches))
         # TMP
         print("Getting match data of the matches...")
-        master_match_data = get_match_data(master_matches, region_extended)
+        matches_data = get_match_data(matches, region_extended)
         print("USING PIPELINE...")
         processed_chall_match_data = use_data_pipeline(
-            master_match_data, 
-            'master_match_data'
+            matches_data, 
+            'matches_data'
         )
 
     except Exception as error: 

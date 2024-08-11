@@ -8,12 +8,20 @@ pd.options.display.max_columns = 200
 pd.options.display.max_rows = 200
 
 # read data in
-ph_tft_challenger_data = pd.read_csv('data/unprocessed_challenger_match_data.csv')
-ph_tft_gm_data = pd.read_csv('data/unprocessed_gm_match_data.csv')
+ph_tft_challenger_data = pd.read_parquet(
+    'data/unprocessed_master_match_data.parquet'
+    )
+# ph_tft_gm_data = pd.read_parquet('data/unprocessed__match_data.parquet')
 
-# merge dataframes
-merged_data = pd.concat([ph_tft_challenger_data, ph_tft_gm_data], ignore_index = True)
-
+# # merge dataframes
+# merged_data = pd.concat(
+#     [
+#         ph_tft_challenger_data, 
+#         ph_tft_gm_data
+#     ], 
+#     ignore_index = True
+# )
+merged_data = ph_tft_challenger_data
 # drop duplicate matches
 merged_data = merged_data.drop_duplicates()
 
@@ -37,15 +45,19 @@ for column in merged_data:
             merged_data = merged_data.drop(str(column), axis = 'columns')
 
 # drop some 'redundant' columns
-redundant = ['companion_content_ID', 'companion_item_ID', 'companion_skin_ID', 'last_round', 'players_eliminated']
+redundant = [
+    'companion_content_ID', 'companion_item_ID', 'companion_skin_ID', 
+    'last_round', 'players_eliminated'
+]
 merged_data = merged_data.drop(redundant, axis = 'columns')
 merged_data = merged_data.reset_index(drop = True).copy()
 merged_data = merged_data.replace('...._Augment_', '', regex = True)
-merged_data.to_excel("data/tableau_data.xlsx")
+merged_data.to_parquet("data/tableau_data.parquet")
 
 # Exploratory Questions
 '''
-1. What are the most picked augments at each stage? What are the least picked (but still picked) augments at each stage?
+1. What are the most picked augments at each stage? What are the 
+   least picked (but still picked) augments at each stage?
 2. Which companion_species has the highest winrate?
 3. What is the average level of players at the end of the game?
 4. What is the most used trait?
@@ -76,13 +88,17 @@ ax3.set_ylabel('Count')
 
 
 '''
-1a. Some of the most picked augments at 2-1 include True Twos and Threes Company (very high tempo augments), Portable Forge
-(which is fun), economy augments such as Trade Sector and Rich Get Richer, then augments that are give a consistent
-passive buff such as the Vi Support, Ezreal Support, Annie Support, etc.
-At 3-2 when most comps are probably cemented, Component Grab Bag is heavily picked to complete some items for tempo.
-Supportive, consistent augments are still heavily picked.
-At 4-2, damage is sought after with the Component Grab Bag and Jeweled Lotus picks, and notable Samira Support and
-Soraka Support are picked heavily for AD and AP players respectively.
+1a. Some of the most picked augments at 2-1 include True Twos and Threes Company
+(very high tempo augments), Portable Forge (which is fun), economy augments
+such as Trade Sector and Rich Get Richer, then augments that are give a 
+consistent passive buff such as the Vi Support, Ezreal Support, 
+Annie Support, etc.
+At 3-2 when most comps are probably cemented, Component Grab Bag is heavily 
+picked to complete some items for tempo. Supportive, consistent augments are 
+still heavily picked.
+At 4-2, damage is sought after with the Component Grab Bag and 
+Jeweled Lotus picks, and notable Samira Support and Soraka Support are 
+picked heavily for AD and AP players respectively.
 '''
 
 print(augments1.tail(20), '\n', augments2.tail(20), '\n', augments3.tail(20))
@@ -99,10 +115,12 @@ ax6.set_xlabel('Augment')
 ax6.set_ylabel('Count')
 
 '''
-1b. Some of the least picked augments at 2-1 are the Radiant Future Sight augment (since it requires a lot of thought ), 
-the Rammus Carry Augment, and the Senna Carry augment.
-At 3-2, some notable low pick-rate augments include Preparation 3 (since you already have an established board),
-the Sett and Zac carry augments (since they are "not good units" for carrying), and Big Friend 2 (usually a better
+1b. Some of the least picked augments at 2-1 are the Radiant Future Sight 
+augment (since it requires a lot of thought ), the Rammus Carry Augment,
+and the Senna Carry augment.    
+At 3-2, some notable low pick-rate augments include Preparation 3 
+(since you already have an established board), the Sett and Zac carry augments 
+(since they are "not good units" for carrying), and Big Friend 2 (usually a better
 option is present if playing Brawlers, the only composition that can play this well).
 At 4-2, some rarely picked augments are Tri Force 3 and 1 (usually only picked by people who are already playing many
 reroll 3 cost units), Featherweights 2 and 3 (since at high elo, the average level is 8 and games are played around

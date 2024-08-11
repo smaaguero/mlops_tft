@@ -1,0 +1,7 @@
+pipeline_data_analysis:
+  type: pandas.ParquetDataset
+  filepath: data/unprocessed_matches_data.parquet
+
+pipeline_ml:
+  type: pandas.ParquetDataset
+  filepath: data/processed_matches_data.parquet
