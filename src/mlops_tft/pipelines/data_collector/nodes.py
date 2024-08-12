@@ -5,17 +5,24 @@ from typing import List
 from sklearn.pipeline import Pipeline
 from .sklearn_pipes import NaNDropper, CorruptedDropper, ResetIndex, DescribeMissing
 from .sklearn_pipes import TrainDropper, OutlierRemover, GetAugmentDummies
+from pathlib import Path
+from kedro.config import OmegaConfigLoader
+from kedro.framework.project import settings
 
+# LOAD the API_KEY from the credentials
+conf_path = str(settings.CONF_SOURCE)
+conf_loader = OmegaConfigLoader(conf_source=conf_path)
+credentials = conf_loader["credentials"]
+API_KEY = credentials["API_KEY"]
 
 def get_challenger_data(
-        api_key: str, 
         region: str
     ) -> List[str]:
     """
     Retrieves challenger-level player data for a specified region in Teamfight Tactics (TFT).
 
     Args:
-        api_key (str): The API key for accessing Riot Games' API.
+        API_KEY (str): The API key for accessing Riot Games' API.
         region (str): The region code for the desired data (e.g., "na1", "euw1").
 
     Returns:
@@ -29,8 +36,7 @@ def get_challenger_data(
             ".api.riotgames.com/tft/league/v1/challenger?queue=RANKED_TFT",
         ]
     )
-    ph_gm_url = ph_gm_url + "&api_key=" + api_key
-
+    ph_gm_url = ph_gm_url + "&api_key=" + API_KEY
     # Make the API request and parse the JSON response
     try:
         ph_gm_resp = requests.get(ph_gm_url, timeout=127)
@@ -50,7 +56,6 @@ def get_id(players: List[str]) -> List[str]:
     Returns:
         List[str]: A list of summoner IDs for the players.
     """
-    
     player_ids = [player["summonerId"] for player in players["entries"]]
     
     return player_ids
@@ -58,8 +63,7 @@ def get_id(players: List[str]) -> List[str]:
 
 def get_puuid(
     names: List[str], 
-    region: str,
-    api_key: str
+    region: str
 ) -> List[str]:
     """
     Retrieves the PUUIDs (Player Universally Unique Identifiers) for the given summoner names.
@@ -67,7 +71,7 @@ def get_puuid(
     Args:
         names (List[str]): A list of summoner names.
         region (str): The region code for the desired data.
-        api_key (str): The API key for accessing Riot Games' API.
+        API_KEY (str): The API key for accessing Riot Games' API.
 
     Returns:
         List[str]: A list of PUUIDs for the specified summoner names.
@@ -88,7 +92,7 @@ def get_puuid(
                 puuid_url, 
                 name, 
                 "?api_key=",
-                api_key
+                API_KEY
             ]
         )
         puuid_resp = requests.get(puuid_url, timeout=127)
@@ -105,8 +109,7 @@ def get_puuid(
 def get_match_ids(
     puuids: List[str], 
     region_extended: str, 
-    n_matches: int,
-    api_key: str
+    n_matches: int
 ) -> List[str]:
     """
     Retrieves match IDs for the specified PUUIDs.
@@ -115,7 +118,7 @@ def get_match_ids(
         puuids (List[str]): A list of PUUIDs.
         region_extended (str): The extended region code for match retrieval (e.g., "americas", "europe").
         n_matches (int): The number of matches to retrieve for each PUUID.
-        api_key (str): The API key for accessing Riot Games' API.
+        API_KEY (str): The API key for accessing Riot Games' API.
 
     Returns:
         List[str]: A list of match IDs for the specified PUUIDs.
@@ -132,7 +135,7 @@ def get_match_ids(
             ]
         )
         match_url += "".join(
-            [puuid, "/ids?start=0&count=", str(n_matches), "&api_key=", api_key]
+            [puuid, "/ids?start=0&count=", str(n_matches), "&api_key=", API_KEY]
         )
         match_resp = requests.get(match_url, timeout=127)
         match_ids += match_resp.json()
@@ -142,8 +145,7 @@ def get_match_ids(
 
 def get_match_data(
     match_ids: List[str], 
-    region_extended: str,
-    api_key: str
+    region_extended: str
 ) -> pd.DataFrame:
     """
     Retrieves match data for the specified match IDs.
@@ -151,7 +153,7 @@ def get_match_data(
     Args:
         match_ids (List[str]): A list of match IDs.
         region_extended (str): The extended region code for match retrieval.
-        api_key (str): The API key for accessing Riot Games' API.
+        API_KEY (str): The API key for accessing Riot Games' API.
 
     Returns:
         pd.DataFrame: A DataFrame containing match data, with one row per participant.
@@ -171,7 +173,7 @@ def get_match_data(
                 ".api.riotgames.com/tft/match/v1/matches/",
                 match,
                 "?api_key=",
-                api_key,
+                API_KEY,
             ]
         )
         match_resp = requests.get(match_url, timeout=127).json()

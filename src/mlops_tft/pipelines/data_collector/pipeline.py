@@ -13,7 +13,6 @@ def create_pipeline(**kwargs) -> Pipeline:
             name='get_challenger_data',
             func=get_challenger_data,
             inputs=[
-                'params:API_key',
                 'params:region'
             ],
             outputs="get_challenger_data"
@@ -31,8 +30,7 @@ def create_pipeline(**kwargs) -> Pipeline:
             func=get_puuid, # noqa: F405
             inputs=[
                 'get_id',
-                'params:region',
-                'params:API_key'
+                'params:region'
             ],
             outputs="get_puuid"
         ),
@@ -42,8 +40,7 @@ def create_pipeline(**kwargs) -> Pipeline:
             inputs=[
                 'get_puuid',
                 'params:region_extended',
-                'params:n_matches',
-                'params:API_key'
+                'params:n_matches'
             ],
             outputs="get_match_ids"
         ),
@@ -52,8 +49,7 @@ def create_pipeline(**kwargs) -> Pipeline:
             func=get_match_data,
             inputs=[
                 'get_match_ids',
-                'params:region_extended',
-                'params:API_key'
+                'params:region_extended'
             ],
             outputs="get_match_data"
         ),

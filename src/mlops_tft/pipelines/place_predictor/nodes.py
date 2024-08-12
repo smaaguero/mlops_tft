@@ -4,25 +4,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (accuracy_score, confusion_matrix,
                              mean_absolute_error)
 from sklearn.model_selection import GridSearchCV, train_test_split
 from typing import Tuple
 import joblib
+from sklearn.model_selection import StratifiedKFold
+import xgboost as xgb
+from sklearn.metrics import roc_auc_score
+from .optuna_utils import Optimizer
 
-def scoring(rf_grid, X_train, y_train, X_test, y_test):
-    print(f'Train Accuracy - : {rf_grid.score(X_train, y_train):.3f}')
-    print(f'Test Accuracy - : {rf_grid.score(X_test, y_test):.3f}')
+def scoring(model, X_train, y_train, X_test, y_test):
+    dtest = xgb.DMatrix(X_test)
 
-    y_pred = rf_grid.best_estimator_.predict(X_test)
-
-    # mean absolute error
-
-    mae = mean_absolute_error(y_test, y_pred)
-
+    y_pred = model.predict(dtest)
     # confusion matrix
-    conf_mat = confusion_matrix(y_test, y_pred)
+    conf_mat = confusion_matrix(y_test, (y_pred >= 0.5).astype(int))
     sns.heatmap(conf_mat, annot = True, fmt = 'g')
     plt.title('Confusion Matrix of Placement Predictor')
     plt.ylabel('Real Place')
@@ -30,8 +27,10 @@ def scoring(rf_grid, X_train, y_train, X_test, y_test):
     plt.show()
 
     # accuracy score
-    print("Accuracy of model:", accuracy_score(y_test, y_pred))
-    print("Mean Average Error: ", mae)
+    print("Accuracy of model:", accuracy_score(
+        y_test, 
+        (y_pred >= 0.5).astype(int))
+    )
 
 
 def filter_columns(X_full: pd.DataFrame) -> pd.DataFrame:
@@ -140,7 +139,7 @@ def prepare_sets_data(
     # X8 = X4 = X2 = X
     # y8 = y  # 8 possible classifications
     # y4 = y.replace({1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3, 7: 4, 8: 4})  # 4 possible classifications
-    # y2 = y.replace({1: 1, 2: 1, 3: 1, 4: 1, 5: 2, 6: 2, 7: 2, 8: 2})  # 2 possible classifications
+    y = y.replace({1: 1, 2: 1, 3: 1, 4: 1, 5: 0, 6: 0, 7: 0, 8: 0})  # 2 possible classifications
 
     # return X8, X4, X2, y8, y4, y2
 
@@ -156,26 +155,22 @@ def prepare_sets_data(
         'data/X_train.parquet', 
         index = False
     )
-    pd.DataFrame(y_train, columns=["label"]).to_parquet(
-        'data/y_train.parquet', 
-        index = False
-    )
+    y_train.to_frame().to_parquet('data/y_train.parquet', index = False)
     X_test.to_parquet(
         'data/X_test.parquet', 
         index = False
     )
-    pd.DataFrame(y_test, columns=["label"]).to_parquet(
-        'data/y_test.parquet', 
-        index = False
-    )
-    return  X_train, X_test, y_train, y_test
+    y_test.to_frame().to_parquet('data/y_test.parquet', index = False)
+
+    return  X_train, X_test, y_train.to_frame(), y_test.to_frame()
 
 def train_models(
         X_train: pd.DataFrame, 
         y_train: pd.Series, 
         X_test: pd.DataFrame, 
-        y_test: pd.Series, 
-        # param_grid: dict,
+        y_test: pd.Series,
+        n_trials: int,
+        grid_to_search: dict
 ) -> GridSearchCV:
     """
     Trains a RandomForest model using grid search and evaluates it.
@@ -190,29 +185,39 @@ def train_models(
     Returns:
         GridSearchCV: The trained model after grid search.
     """
-    param_grid = {
-        'n_estimators': [10, 100, 200],
-        'max_features': ['auto', 'sqrt'],
-        'max_depth': [None],
-        'min_samples_split': [2, 4],
-        'min_samples_leaf': [1, 2],
-        'bootstrap': [True, False]
-    }  
+    # Get the train and validation data sets.
+    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    v_X_train, v_X_valid, v_y_train, v_y_valid = [], [], [], []
+    for train_index, valid_index in kf.split(X_train, y_train):
+        v_X_train.append(X_train.iloc[train_index])
+        v_X_valid.append(X_train.iloc[valid_index])
+        v_y_train.append(y_train.iloc[train_index])
+        v_y_valid.append(y_train.iloc[valid_index])
 
-    forest_model = RandomForestClassifier()
+    data = {
+        'v_X_train': v_X_train,
+        'v_X_valid': v_X_valid,
+        'v_y_train': v_y_train,
+        'v_y_valid': v_y_valid
+    }
 
-    rf_grid = GridSearchCV(
-        estimator=forest_model, 
-        param_grid=param_grid, 
-        cv=3, 
-        verbose=2, 
-        n_jobs=4
-    )
 
-    rf_grid.fit(X_train, y_train)
-    joblib.dump(rf_grid, 'etc/rf.pkl')
+    optimizer = Optimizer(grid_to_search, data)
+    best_trial = optimizer.optimize(direction='maximize', n_trials=n_trials)
 
-    print("Best parameters:", rf_grid.best_params_)
-    scoring(rf_grid, X_train, y_train, X_test, y_test)
-    
-    return rf_grid
+    print("Best trial parameters:", best_trial.params)
+    print("Best trial score:", best_trial.value)
+
+    # Train the final model using the best hyperparameters
+    dtrain = xgb.DMatrix(X_train, label=y_train)
+    final_model = xgb.train(best_trial.params, dtrain)
+
+
+    scoring(final_model, X_train, y_train, X_test, y_test)
+
+
+    joblib.dump(final_model, 'etc/xgboost.pkl')    
+
+    return final_model
+
+

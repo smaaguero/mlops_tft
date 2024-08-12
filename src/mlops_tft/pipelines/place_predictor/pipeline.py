@@ -67,7 +67,9 @@ def create_pipeline(**kwargs) -> Pipeline:
                 'X_train',
                 'y_train',
                 'X_test',
-                'y_test'
+                'y_test',
+                'params:n_trials',
+                'params:gris_to_search'
             ],
             outputs=None
         ),

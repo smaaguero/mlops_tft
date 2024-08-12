@@ -1,2 +1,50 @@
 test_size: 0.2
 random_state: 42
+
+n_trials: 10
+
+# Si queremos saltarnos la fase de buscar hiperparámetros, 
+# utilizamos directamente este grid.
+# En cambio, si queremos buscar, comentamos las lineas indentadas 
+# debajo de "grid:"
+# grid_elegidos:
+#   metric: auc
+#   objective: binary:logistic
+#   booster: gbtree
+#   verbosity: 0
+#   n_jobs: 2
+#   tree_method: hist
+#   grow_policy: lossguide
+#   random_state: 42
+#   max_depth: 12
+#   min_child_weight: 2
+#   n_estimators: 335
+#   subsample: 0.902214480111176
+#   colsample_bytree: 0.9317881404711932
+#   scale_pos_weight: 6.118514245770904
+#   learning_rate: 0.028852029758999663
+#   reg_alpha: 0.404778731059258
+#   reg_lambda: 0.12130860547409597
+
+gris_to_search:
+  contexto:
+    metric: auc
+    objective: binary:logistic
+    booster: gbtree
+    verbosity: 0
+    n_jobs: 2
+    tree_method: hist
+    grow_policy: lossguide
+    random_state: 42
+  int:
+    max_depth: [5, 20]
+    min_child_weight: [1, 10]
+    n_estimators: [300, 800]
+    # early_stopping_rounds: [20, 80]
+  float:
+    subsample: [0.5, 1.0]
+    colsample_bytree: [0.5, 1.0]
+    scale_pos_weight: [4.0, 8.0]
+  loguniform:
+    learning_rate: [0.01, 0.3]
+    reg_alpha: [0.001, 10.0]

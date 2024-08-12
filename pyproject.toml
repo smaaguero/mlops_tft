@@ -19,6 +19,8 @@ fastparquet = "^2024.5.0"
 ruff = "^0.5.6"
 kedro = {extras = ["pandas-parquetdataset"], version = "^0.19.7"}
 kedro-datasets = "^4.1.0"
+optuna = "^3.6.1"
+xgboost = "^2.1.1"
 
 
 [tool.poetry.group.dev.dependencies]
