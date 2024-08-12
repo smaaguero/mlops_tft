@@ -8,7 +8,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (accuracy_score, confusion_matrix,
                              mean_absolute_error)
 from sklearn.model_selection import GridSearchCV, train_test_split
-from typing import Tuple, Callable
+from typing import Tuple
+import joblib
 
 def scoring(rf_grid, X_train, y_train, X_test, y_test):
     print(f'Train Accuracy - : {rf_grid.score(X_train, y_train):.3f}')
@@ -150,6 +151,23 @@ def prepare_sets_data(
         random_state=random_state
     )
 
+    # Save the data
+    X_train.to_parquet(
+        'data/X_train.parquet', 
+        index = False
+    )
+    pd.DataFrame(y_train, columns=["label"]).to_parquet(
+        'data/y_train.parquet', 
+        index = False
+    )
+    X_test.to_parquet(
+        'data/X_test.parquet', 
+        index = False
+    )
+    pd.DataFrame(y_test, columns=["label"]).to_parquet(
+        'data/y_test.parquet', 
+        index = False
+    )
     return  X_train, X_test, y_train, y_test
 
 def train_models(
@@ -157,7 +175,7 @@ def train_models(
         y_train: pd.Series, 
         X_test: pd.DataFrame, 
         y_test: pd.Series, 
-        # param_grid: dict, 
+        # param_grid: dict,
 ) -> GridSearchCV:
     """
     Trains a RandomForest model using grid search and evaluates it.
@@ -190,8 +208,10 @@ def train_models(
         verbose=2, 
         n_jobs=4
     )
+
     rf_grid.fit(X_train, y_train)
-    
+    joblib.dump(rf_grid, 'etc/rf.pkl')
+
     print("Best parameters:", rf_grid.best_params_)
     scoring(rf_grid, X_train, y_train, X_test, y_test)
     

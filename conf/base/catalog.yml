@@ -5,3 +5,19 @@ pipeline_data_analysis:
 pipeline_ml:
   type: pandas.ParquetDataset
   filepath: data/processed_matches_data.parquet
+
+X_train:
+  type: pandas.ParquetDataset
+  filepath: data/X_train.parquet
+
+y_train:
+  type: pandas.ParquetDataset
+  filepath: data/y_train.parquet
+
+X_test:
+  type: pandas.ParquetDataset
+  filepath: data/X_test.parquet
+
+y_test:
+  type: pandas.ParquetDataset
+  filepath: data/y_test.parquet
